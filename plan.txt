@@ -1,0 +1,942 @@
+Saya ingin membangun sebuah high-performance server framework C++ modern yang memiliki developer experience terinspirasi dari framework seperti ElysiaJS/Fastify, tetapi dirancang dari awal untuk ekosistem C++.
+
+Nama proyek sementara: elaina-cpp
+
+Tujuan akhirnya adalah membuat framework yang memungkinkan developer membuat server dengan API yang sederhana seperti:
+
+#include <framework/framework.hpp>
+
+int main() {
+    Server app;
+
+    app.get("/", [](Context& ctx) {
+        return ctx.text("Hello World");
+    });
+
+    app.get("/users/:id", [](Context& ctx) {
+        return ctx.json(...);
+    });
+
+    app.listen(3000);
+}
+
+API di atas HANYA contoh awal. Jangan menganggap desain tersebut sudah benar. Kamu harus mengevaluasi dan memperbaikinya jika ada desain yang lebih idiomatis, aman, cepat, atau mudah dikembangkan dalam C++.
+
+==================================================
+ATURAN UTAMA
+
+Kamu sekarang bertindak sebagai:
+
+- Principal C++ Architect
+- High-performance networking engineer
+- Library/API designer
+- Systems engineer
+- Performance engineer
+
+Tugasmu HANYA membuat technical architecture plan.
+
+JANGAN:
+
+- menulis implementation code
+- membuat file source
+- memberikan kode lengkap
+- langsung mengimplementasikan framework
+- melakukan massive code generation
+
+Output harus berupa blueprint yang nantinya dapat digunakan AI lain untuk tahap implementasi.
+
+Jangan mengasumsikan keputusan teknis tertentu sudah benar. Evaluasi terlebih dahulu.
+
+==================================================
+
+1. PROJECT GOALS
+   ==================================================
+
+Tentukan tujuan framework secara konkret.
+
+Bahas:
+
+- performance
+- latency
+- throughput
+- memory usage
+- developer experience
+- type safety
+- modularity
+- portability
+- security
+- maintainability
+
+Tentukan apa yang menjadi prioritas dan apa yang bukan target framework.
+
+Buat juga daftar:
+
+Non-goals
+
+Hal-hal yang sengaja TIDAK akan menjadi fokus framework.
+
+==================================================
+2. TARGET ENVIRONMENT
+
+Analisis target:
+
+Primary:
+
+- Linux
+- x86_64
+- ARM64
+
+Secondary:
+
+- Windows
+- macOS
+- BSD
+
+Tentukan apakah framework sebaiknya Linux-first atau cross-platform-first.
+
+Jelaskan konsekuensinya.
+
+==================================================
+3. C++ STANDARD
+
+Evaluasi:
+
+- C++20
+- C++23
+- C++26
+
+Analisis fitur yang relevan:
+
+- coroutines
+- concepts
+- constexpr
+- ranges
+- std::expected
+- modules
+- executors
+- networking proposals
+
+Pilih baseline C++ berdasarkan kondisi ecosystem nyata, bukan hanya fitur terbaru.
+
+Jelaskan alasan keputusan tersebut.
+
+==================================================
+4. HIGH-LEVEL ARCHITECTURE
+
+Buat arsitektur keseluruhan.
+
+Minimal analisis subsystem berikut:
+
+Application
+    ↓
+Server
+    ↓
+Router
+    ↓
+Middleware
+    ↓
+Handler
+    ↓
+Context
+    ↓
+HTTP
+    ↓
+Connection
+    ↓
+Networking
+    ↓
+Event Loop
+    ↓
+Operating System
+
+Tetapi jangan berhenti di diagram sederhana.
+
+Buat architecture diagram yang lebih detail.
+
+Jelaskan hubungan setiap subsystem.
+
+==================================================
+5. CORE VS OPTIONAL
+
+Pisahkan framework menjadi:
+
+Core
+
+Fitur yang benar-benar fundamental.
+
+Optional modules
+
+Contohnya:
+
+- JSON
+- WebSocket
+- TLS
+- compression
+- validation
+- OpenAPI
+- database integration
+- observability
+- static files
+
+Tentukan fitur mana yang harus berada di core dan mana yang sebaiknya menjadi module.
+
+Tujuannya agar developer tidak harus membawa seluruh framework jika hanya membutuhkan HTTP server sederhana.
+
+==================================================
+6. NETWORKING ARCHITECTURE
+
+Ini salah satu bagian paling penting.
+
+Analisis:
+
+- epoll
+- io_uring
+- kqueue
+- IOCP
+- poll
+- select
+
+Untuk Linux, bandingkan:
+
+epoll
+
+vs
+
+io_uring
+
+Analisis:
+
+- throughput
+- latency
+- complexity
+- maturity
+- debugging
+- portability
+- CPU usage
+- memory usage
+- connection scalability
+
+Tentukan architecture abstraction yang memungkinkan backend networking diganti.
+
+Contoh konseptual:
+
+Networking API
+      │
+ ┌────┴─────┐
+ │          │
+epoll    io_uring
+
+Jangan menentukan abstraction hanya demi abstraction. Pastikan overhead abstraction rendah.
+
+==================================================
+7. EVENT LOOP
+
+Desain event loop.
+
+Analisis:
+
+- single event loop
+- event loop per CPU core
+- shared event loop
+- worker threads
+- hybrid architecture
+
+Bahas:
+
+- lock contention
+- cache locality
+- CPU affinity
+- scalability
+- NUMA
+- connection distribution
+
+Tentukan model default yang paling masuk akal.
+
+==================================================
+8. ASYNC / CONCURRENCY MODEL
+
+Evaluasi:
+
+- callbacks
+- futures
+- coroutines
+- custom Task<T>
+- std::expected
+- cancellation
+- timeout
+- structured concurrency
+
+Jika coroutine digunakan, tentukan konsep seperti:
+
+Task<T>
+Context
+Scheduler
+Executor
+Cancellation
+Timeout
+
+Jelaskan lifetime dan ownership.
+
+Fokus pada:
+
+- low overhead
+- predictable lifetime
+- easy debugging
+- composability
+
+==================================================
+9. HTTP ARCHITECTURE
+
+Rancang HTTP layer.
+
+Minimal:
+
+HTTP/1.1
+
+Roadmap:
+
+HTTP/2
+HTTP/3
+QUIC
+
+Analisis apakah HTTP parser sebaiknya:
+
+- custom
+- third-party
+- hybrid
+
+Bahas:
+
+- zero-copy parsing
+- header parsing
+- request body
+- streaming
+- chunked encoding
+- keep-alive
+- pipelining
+- malformed requests
+- request limits
+- backpressure
+
+==================================================
+10. ROUTER ARCHITECTURE
+
+Framework harus mendukung:
+
+GET /
+GET /users
+GET /users/:id
+GET /users/:id/posts
+POST /users
+DELETE /users/:id
+
+Evaluasi:
+
+- hash map
+- trie
+- radix tree
+- compressed trie
+- finite-state approaches
+- compile-time routing
+
+Bahas bagaimana router menangani:
+
+- static routes
+- parameters
+- wildcards
+- route groups
+- HTTP methods
+- route priority
+
+Fokus pada routing overhead yang sangat rendah.
+
+==================================================
+11. API / DEVELOPER EXPERIENCE
+
+Desain API framework.
+
+Evaluasi bentuk:
+
+app.get(...)
+app.post(...)
+app.put(...)
+app.patch(...)
+app.delete(...)
+
+dan:
+
+ctx.param(...)
+ctx.query(...)
+ctx.header(...)
+ctx.body(...)
+ctx.json(...)
+ctx.text(...)
+ctx.status(...)
+
+Jangan sekadar meniru ElysiaJS.
+
+Cari desain yang benar-benar terasa natural untuk C++.
+
+Pertimbangkan:
+
+- lambdas
+- function objects
+- templates
+- concepts
+- type inference
+- fluent API
+- builder pattern
+
+Hindari API yang terlihat keren tetapi sulit dikompilasi atau menghasilkan error compiler yang buruk.
+
+==================================================
+12. TYPE SYSTEM
+
+Tentukan bagaimana framework memanfaatkan C++ type system.
+
+Evaluasi:
+
+- concepts
+- templates
+- strong types
+- constexpr
+- std::expected
+- tagged types
+- compile-time metadata
+
+Tentukan bagian mana yang compile-time dan mana yang runtime.
+
+Tujuannya:
+
+Compile-time:
+    type correctness
+    route metadata
+    configuration validation jika memungkinkan
+
+Runtime:
+    request parsing
+    authentication
+    user input validation
+
+==================================================
+13. REQUEST / RESPONSE / CONTEXT
+
+Rancang model:
+
+Request
+Response
+Context
+Headers
+Cookies
+Query
+Path Parameters
+Body
+
+Analisis:
+
+- ownership
+- lifetime
+- stack vs heap
+- buffer reuse
+- zero-copy
+- string_view
+- memory safety
+
+Pastikan tidak ada dangling-reference design.
+
+==================================================
+14. MEMORY ARCHITECTURE
+
+Analisis memory allocation.
+
+Pertimbangkan:
+
+- arena allocator
+- pool allocator
+- object pool
+- buffer pool
+- small-buffer optimization
+- string storage
+- request lifetime
+- response lifetime
+
+Identifikasi hot path.
+
+Buat estimasi konseptual allocation pada request sederhana:
+
+TCP connection
+HTTP parse
+routing
+handler
+response
+
+Tujuannya bukan harus zero allocation.
+
+Tujuannya adalah:
+
+allocation seminimal mungkin pada hot path tanpa membuat architecture menjadi tidak aman atau terlalu kompleks.
+
+==================================================
+15. JSON / SERIALIZATION
+
+Evaluasi:
+
+- nlohmann/json
+- RapidJSON
+- simdjson
+- yyjson
+- Boost.JSON
+- custom JSON
+
+Bandingkan:
+
+- parsing performance
+- serialization
+- memory
+- API ergonomics
+- compile time
+- dependency size
+- license
+- ecosystem
+
+Pilih default dan jelaskan alasannya.
+
+Desain abstraction supaya JSON backend dapat diganti jika memungkinkan.
+
+==================================================
+16. MIDDLEWARE
+
+Rancang middleware architecture.
+
+Target API konseptual:
+
+app.use(Logger());
+app.use(Cors());
+app.use(Auth());
+
+app.get("/private", handler);
+
+Evaluasi:
+
+- function chain
+- template composition
+- virtual dispatch
+- type erasure
+- compile-time composition
+
+Tujuan:
+
+low overhead + API mudah digunakan.
+
+==================================================
+17. WEBSOCKET
+
+Rancang WebSocket sebagai module.
+
+Bahas:
+
+- handshake
+- frame parsing
+- masking
+- fragmentation
+- ping/pong
+- broadcast
+- backpressure
+- connection lifecycle
+
+Jangan mengimplementasikan sekarang.
+
+==================================================
+18. TLS
+
+Evaluasi:
+
+- OpenSSL
+- BoringSSL
+- wolfSSL
+- mbedTLS
+
+Tentukan abstraction TLS.
+
+Bahas:
+
+- certificate handling
+- TLS configuration
+- HTTP/HTTPS integration
+- dependency size
+- portability
+
+==================================================
+19. SECURITY ARCHITECTURE
+
+Buat threat model framework.
+
+Minimal bahas:
+
+- request smuggling
+- header injection
+- path traversal
+- oversized body
+- slowloris
+- connection exhaustion
+- malformed HTTP
+- timeout abuse
+- memory exhaustion
+- WebSocket abuse
+- TLS configuration
+
+Tentukan security defaults.
+
+==================================================
+20. OBSERVABILITY
+
+Rancang architecture untuk:
+
+- logging
+- metrics
+- tracing
+- request ID
+- structured logs
+
+Evaluasi integrasi:
+
+- Prometheus
+- OpenTelemetry
+
+Pastikan observability tidak menjadi dependency wajib core.
+
+==================================================
+21. ERROR MODEL
+
+Tentukan error architecture.
+
+Bandingkan:
+
+exceptions
+std::expected
+Result<T,E>
+std::error_code
+
+Pisahkan:
+
+- framework errors
+- network errors
+- HTTP errors
+- application errors
+- cancellation
+- timeout
+
+Tentukan model yang paling cocok.
+
+==================================================
+22. BUILD SYSTEM
+
+Gunakan CMake sebagai baseline.
+
+Rancang dependency strategy:
+
+- system packages
+- FetchContent
+- CPM.cmake
+- vcpkg
+- Conan
+
+Evaluasi trade-off.
+
+Framework harus dapat digunakan dengan mudah oleh project lain.
+
+==================================================
+23. REPOSITORY STRUCTURE
+
+Buat struktur repository.
+
+Contoh:
+
+framework/
+├── include/
+├── src/
+├── tests/
+├── benchmarks/
+├── examples/
+├── docs/
+├── tools/
+└── cmake/
+
+Tetapi desain struktur final berdasarkan architecture yang kamu pilih.
+
+Jelaskan setiap directory.
+
+==================================================
+24. PERFORMANCE STRATEGY
+
+Jangan memberikan klaim benchmark.
+
+Sebaliknya, tentukan apa yang akan diukur.
+
+Metrics:
+
+- requests/sec
+- p50
+- p95
+- p99
+- throughput
+- memory per connection
+- allocations/request
+- CPU utilization
+- concurrent connections
+
+Tentukan benchmark scenario:
+
+Hello World
+JSON response
+JSON parsing
+Routing
+Large response
+Keep-alive
+Concurrent connections
+WebSocket
+
+==================================================
+25. COMPETITOR / REFERENCE ANALYSIS
+
+Pelajari architecture dan API dari:
+
+- ElysiaJS
+- Fastify
+- Drogon
+- Crow
+- oat++
+- Boost.Beast
+- uWebSockets
+- Actix Web
+- Axum
+
+Jangan menentukan "framework terbaik".
+
+Gunakan mereka hanya sebagai referensi untuk menemukan:
+
+- good ideas
+- bad trade-offs
+- API patterns
+- architecture patterns
+- performance techniques
+
+Jika mengambil inspirasi dari project tertentu, jelaskan apa yang diambil dan apa yang sengaja tidak diambil.
+
+==================================================
+26. MVP
+
+Definisikan MVP.
+
+MVP harus sesederhana mungkin tetapi memiliki fondasi yang benar.
+
+Target minimal:
+
+Server app;
+
+app.get("/", handler);
+
+app.get("/users/:id", handler);
+
+app.listen(3000);
+
+MVP minimal kemungkinan mencakup:
+
+- TCP
+- event loop
+- HTTP/1.1
+- router
+- request
+- response
+- context
+- basic middleware
+- error handling
+
+Tetapi tentukan sendiri berdasarkan dependency graph.
+
+Jangan memasukkan WebSocket, HTTP/2, HTTP/3, OpenAPI, database, dan fitur besar lainnya ke MVP kecuali benar-benar diperlukan.
+
+==================================================
+27. ROADMAP
+
+Buat roadmap:
+
+Phase 0 — Architecture
+Phase 1 — Networking
+Phase 2 — HTTP
+Phase 3 — Router
+Phase 4 — Middleware
+Phase 5 — Async
+Phase 6 — JSON
+Phase 7 — TLS
+Phase 8 — WebSocket
+Phase 9 — Validation
+Phase 10 — Observability
+Phase 11 — HTTP/2
+Phase 12 — io_uring
+Phase 13 — Optimization
+
+Sesuaikan urutannya dengan dependency graph yang sebenarnya.
+
+Untuk setiap phase berikan:
+
+- objective
+- components
+- dependencies
+- tests
+- benchmark
+- risks
+- definition of done
+
+==================================================
+28. ARCHITECTURAL DECISION RECORDS
+
+Buat daftar keputusan penting yang harus ditetapkan.
+
+Format:
+
+ADR-001
+Decision:
+Reason:
+Alternatives:
+Trade-offs:
+Consequences:
+
+Minimal buat ADR untuk:
+
+- C++ version
+- networking backend
+- event loop
+- concurrency model
+- coroutine strategy
+- router
+- HTTP parser
+- JSON
+- memory management
+- error handling
+- dependency management
+- portability
+
+==================================================
+29. RISKS
+
+Identifikasi risiko terbesar.
+
+Contoh:
+
+- overengineering
+- excessive templates
+- compile-time explosion
+- ABI instability
+- memory bugs
+- coroutine complexity
+- networking bugs
+- security vulnerabilities
+- dependency hell
+- portability problems
+- difficult debugging
+- premature optimization
+
+Untuk setiap risiko berikan mitigasi.
+
+==================================================
+30. FINAL ARCHITECTURE
+
+Di akhir, berikan:
+
+Final Architecture
+
+Satu architecture proposal yang sudah dipilih.
+
+Core Components
+
+Daftar component final.
+
+Dependency Graph
+
+Diagram dependency.
+
+Runtime Flow
+
+Jelaskan apa yang terjadi ketika:
+
+client
+→ TCP
+→ HTTP parser
+→ router
+→ middleware
+→ handler
+→ response
+→ socket
+
+Memory Flow
+
+Jelaskan lifecycle memory selama satu request.
+
+Concurrency Flow
+
+Jelaskan bagaimana request diproses pada multi-core.
+
+MVP
+
+Daftar fitur MVP.
+
+Post-MVP
+
+Daftar fitur berikutnya.
+
+Implementation Order
+
+Urutan implementasi berdasarkan dependency graph.
+
+==================================================
+OUTPUT REQUIREMENT
+
+Jawaban harus berupa technical planning document, bukan tutorial.
+
+Gunakan:
+
+- diagram ASCII
+- tabel perbandingan
+- dependency graph
+- ADR
+- roadmap
+- trade-off analysis
+
+Jangan menulis implementation code.
+
+Jika terdapat beberapa pilihan yang sama-sama masuk akal, jangan langsung memilih tanpa analisis.
+
+Tampilkan:
+
+Option A
+Advantages
+Disadvantages
+
+Option B
+Advantages
+Disadvantages
+
+Recommendation
+Reason
+
+Namun recommendation hanya untuk keputusan teknis arsitektur, bukan ranking framework.
+
+Prioritas desain:
+
+1. Correctness
+2. Performance
+3. Memory efficiency
+4. Security
+5. Developer experience
+6. Type safety
+7. Maintainability
+8. Portability
+
+Dan satu prinsip penting:
+
+Jangan mengoptimalkan sesuatu sebelum tahu bahwa itu merupakan bottleneck.
+
+Framework harus cepat karena architecture-nya baik, bukan karena penuh micro-optimization yang membuat codebase sulit dipelihara.
+
+Sekali lagi: tahap ini HANYA PLANNING. Jangan membuat kode implementasi.
