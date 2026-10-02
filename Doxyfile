@@ -1,0 +1,20 @@
+# Doxyfile — generate dokumentasi HTML elaina-cpp (Doxygen).
+# Pakai: doxygen Doxyfile   -> output di docs/html/
+PROJECT_NAME           = "elaina-cpp"
+PROJECT_BRIEF          = "High-performance C++ HTTP framework"
+OUTPUT_DIRECTORY       = docs
+INPUT                  = include modules src examples README.md docs/API.md
+RECURSIVE              = YES
+FILE_PATTERNS          = *.hpp *.cpp *.md
+EXCLUDE_PATTERNS       = */build/* docs/html/*
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+JAVADOC_AUTOBRIEF      = YES
+OPTIMIZE_OUTPUT_FOR_C  = NO
+SHOW_INCLUDE_FILES     = YES
+SORT_MEMBER_DOCS       = NO
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = YES

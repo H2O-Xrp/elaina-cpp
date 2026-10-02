@@ -1,3 +1,9 @@
+/// @file router.cpp
+/// @brief Implementasi Router segment-trie.
+///
+/// - split()/insert_into(): control-plane (registrasi, boleh alokasi).
+/// - match(): data-plane nol-alokasi — iterasi segmen di tempat +
+///   lookup hash transparan; probe 405 memakai iterator yang sama.
 #include "elaina/router.hpp"
 
 namespace elaina {
@@ -80,79 +86,96 @@ RouteMatch Router::match(Method method, std::string_view path) const noexcept {
   // Strip query if caller forgot.
   if (auto q = path.find('?'); q != std::string_view::npos) path = path.substr(0, q);
 
-  auto try_match = [&](const Node* root) -> bool {
-    if (!root) return false;
-    auto segs = split(path);
+  // Zero-alloc segment iteration: yields each '/'-separated segment without
+  // building a vector. Mirrors split() semantics (root "/" -> 0 segs,
+  // trailing "/" -> trailing empty seg).
+  auto match_root = [&](const Node* root, ParamMap* params_out) noexcept -> const Node* {
+    if (!root) return nullptr;
+    if (path.empty() || path[0] != '/') {
+      // Same as split(): non-absolute -> empty segs -> root itself.
+      return root;
+    }
+    if (path.size() == 1) return root;  // "/"
     const Node* cur = root;
-    ParamMap params;
-    for (std::size_t i = 0; i < segs.size(); ++i) {
-      auto seg = segs[i];
-      // 1. static
-      auto it = cur->statics.find(std::string(seg));
+    std::size_t pos = 1;
+    while (pos <= path.size()) {
+      std::size_t j = path.find('/', pos);
+      if (j == std::string_view::npos) j = path.size();
+      std::string_view seg = path.substr(pos, j - pos);
+      // 1. static (heterogeneous lookup: no std::string temp).
+      auto it = cur->statics.find(seg);
       if (it != cur->statics.end()) {
         cur = it->second.get();
+        pos = j + 1;
+        if (pos > path.size()) break;
+        // If we consumed exactly up to end, loop ends; trailing "/" case
+        // produces one more empty seg on next iteration (pos==size).
+        if (j == path.size()) break;
         continue;
       }
       // 2. param
       if (cur->param) {
-        if (!params.add(cur->param_name, seg)) return false;
+        if (params_out) {
+          if (!params_out->add(cur->param_name, seg)) return nullptr;
+        }
         cur = cur->param.get();
+        pos = j + 1;
+        if (j == path.size()) break;
+        if (pos > path.size()) break;
         continue;
       }
-      // 3. wildcard (terminal catch-all)
+      // 3. wildcard (terminal catch-all): consumes the rest.
       if (cur->wildcard) {
-        cur = cur->wildcard.get();
-        // Wildcard consumes the rest.
-        out.handler = cur->handler;
-        out.params = params;
-        return out.handler != nullptr;
+        return cur->wildcard.get();
       }
-      return false;
+      return nullptr;
     }
-    // Exact consumption. Also allow trailing wildcard matching empty rest.
-    if (cur->handler) {
-      out.handler = cur->handler;
-      out.params = params;
-      return true;
-    }
-    if (cur->wildcard && cur->wildcard->handler) {
-      out.handler = cur->wildcard->handler;
-      out.params = params;
-      return true;
-    }
-    return false;
+    return cur;
   };
 
   auto idx = method_index(method);
-  if (try_match(roots_[idx].get())) return out;
+  {
+    ParamMap params;
+    const Node* cur = match_root(roots_[idx].get(), &params);
+    if (cur) {
+      if (cur->handler) {
+        out.handler = cur->handler;
+        out.params = params;
+        return out;
+      }
+      // Trailing wildcard matching empty rest.
+      if (cur->wildcard && cur->wildcard->handler) {
+        out.handler = cur->wildcard->handler;
+        out.params = params;
+        return out;
+      }
+      // Wildcard consumed rest: match_root returned wildcard node directly.
+      // If that node has a handler, it's a hit (handles /static/a/b/c).
+      // Note: match_root returns wildcard node when wildcard branch taken,
+      // which may itself lack handler but have no further traversal — treat
+      // same as above: only handler counts.
+    } else {
+      // match_root returned nullptr on param overflow or miss. But wildcard
+      // consumption returns non-null, so nullptr here means miss. However
+      // wildcard-mid-path case already returned wildcard node; check if that
+      // path was actually a wildcard hit with handler — handled above.
+      // Fall through to 405 probe.
+    }
+    // Distinguish wildcard-mid-path hit vs exact hit: if cur is non-null and
+    // came from wildcard consumption, its handler check above already covers
+    // it. No extra work needed.
+    if (out.handler) return out;
+    // If primary root matched a node with handler we returned. Otherwise probe 405.
+    // Fast exit: if cur != nullptr and (handler or wildcard handler) we would
+    // have returned, so reaching here means miss for this method.
+  }
 
   // Check if path exists under another method -> 405.
+  // Reuses zero-alloc iteration; no params needed.
   for (std::size_t m = 0; m < kMethodCount; ++m) {
     if (m == idx || !roots_[m]) continue;
-    RouteMatch probe;
-    // Reuse logic: temporarily match with that root.
-    const Node* root = roots_[m].get();
-    auto segs = split(path);
-    const Node* cur = root;
-    bool ok = true;
-    for (auto seg : segs) {
-      auto it = cur->statics.find(std::string(seg));
-      if (it != cur->statics.end()) {
-        cur = it->second.get();
-        continue;
-      }
-      if (cur->param) {
-        cur = cur->param.get();
-        continue;
-      }
-      if (cur->wildcard) {
-        cur = cur->wildcard.get();
-        break;
-      }
-      ok = false;
-      break;
-    }
-    if (ok && cur && (cur->handler || (cur->wildcard && cur->wildcard->handler))) {
+    const Node* cur = match_root(roots_[m].get(), nullptr);
+    if (cur && (cur->handler || (cur->wildcard && cur->wildcard->handler))) {
       out.method_mismatch = true;
       return out;
     }

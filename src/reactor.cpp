@@ -1,3 +1,9 @@
+/// @file reactor.cpp
+/// @brief Implementasi EpollReactor (Linux) dan PollReactor (fallback).
+///
+/// Epoll dipakai level-triggered (tanpa EPOLLET): aman terhadap event yang
+/// terlewat dengan harga wakeup ekstra. PollReactor memakai ulang buffer
+/// pollfd antar panggilan agar 0-alokasi setelah warmup.
 #include "elaina/reactor.hpp"
 
 #include <cerrno>
@@ -103,22 +109,22 @@ int PollReactor::poll(std::vector<FdEvent>& out, int timeout_ms) {
     ::poll(&dummy, 0, timeout_ms);
     return 0;
   }
-  std::vector<struct pollfd> pfds;
-  pfds.reserve(entries_.size());
+  pfds_.clear();
+  if (pfds_.capacity() < entries_.size()) pfds_.reserve(entries_.size());
   for (auto& e : entries_) {
     struct pollfd p {};
     p.fd = e.fd;
     p.events = 0;
     if (e.interest == Interest::Read || e.interest == Interest::ReadWrite) p.events |= POLLIN;
     if (e.interest == Interest::Write || e.interest == Interest::ReadWrite) p.events |= POLLOUT;
-    pfds.push_back(p);
+    pfds_.push_back(p);
   }
-  int n = ::poll(pfds.data(), pfds.size(), timeout_ms);
+  int n = ::poll(pfds_.data(), pfds_.size(), timeout_ms);
   if (n < 0) {
     if (errno == EINTR) return 0;
     return -1;
   }
-  for (auto& p : pfds) {
+  for (auto& p : pfds_) {
     if (p.revents != 0) {
       FdEvent e;
       e.fd = p.fd;
